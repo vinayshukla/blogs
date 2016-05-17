@@ -1,0 +1,188 @@
+Apache Zeppelin Technical Preview on HDP 2.4.2
+Author: Vinay Shukla
+
+In March, 2016 we delivered 2nd technical preview of Apache Zeppelin on HDP 2.4. Meanwhile we and the Zeppelin community continues to add new features to Zeppelin.  We now give you the final technical preview of Zeppelin, based on snapshot of Apache Zeppelin 0.6.0. The main features in this Zeppelin technical preview are: 
+
+Ambari Managed Installation
+Zeppelin Livy integration
+Security 
+Execute jobs as authenticated user
+Zeppelin authentication against LDAP
+Notebook Authorization
+Prerequisites:
+HDP 2.4.2 is installed
+The cluster contains Spark 1.6 or 1.5
+Git is installed on the node running Ambari Server
+You can install git as ‘ sudo yum install git’
+Java 8 is installed on the node where Zeppelin is installed
+
+This document provides instructions for :
+Setting up Zeppelin on HDP 2.4.2 with Spark 1.6
+Ambari Managed Install
+Running Zeppelin against Spark on YARN with Livy interpreter
+Authentication with Zeppelin
+Authenticate users against LDAP
+Access Control on Notebooks
+Note, while both Ambari managed and Manual install instructions are provided, you only need to follow either one to get Zeppelin setup in your cluster.
+HDP Cluster Requirement
+This technical preview can be installed on any HDP 2.4.2 cluster, whether it is a multi-node cluster or a single-node HDP Sandbox. The following instructions assume that Spark (version 1.6 ) is already installed on the HDP cluster.
+Ambari Managed Zeppelin Install
+Step 1: Download the Zeppelin Ambari Stack Definition 
+On the node running Ambari server, run the following
+
+VERSION=`hdp-select status hadoop-client | sed 's/hadoop-client - \([0-9]\.[0-9]\).*/\1/'`
+sudo git clone https://github.com/hortonworks-gallery/ambari-zeppelin-service.git   /var/lib/ambari-server/resources/stacks/HDP/$VERSION/services/ZEPPELIN
+Step 2: Re-start Ambari Server
+sudo service ambari-server restart
+Step 3: Add Zeppelin Service with Ambari
+Make sure to install Zeppelin Service to a node where Spark Client’s are installed.
+Once Ambari comes back up and the services turn green, you can click on 'Add Service' from the 'Actions' dropdown menu in the bottom left of the Ambari dashboard:
+
+Make a note of the node selected to run Zeppelin service, call this ZEPPELIN_HOST
+On bottom left -> Actions -> Add service -> check Zeppelin service -> Next -> Next -> Next -> Deploy. 
+Accept all the default values and hit deploy button.
+
+
+Step 4: Launch Zeppelin 
+Once Zeppelin is deployed, launch http://ZEPPELIN_HOST:9995 in your browser.
+Try out included Zeppelin tutorial. There are a few Zeppelin notebooks available at Hortonworks Zeppelin Gallery. Please try them out.
+The rest of the steps described in the doc are optional and needed for additional functionality around security.
+Optional: Enable Zeppelin for Security
+This section shows configuration to allow Zeppelin to authenticate end-user. Zeppelin uses Livy to execute jobs with Spark on YARN as the end user. 
+
+These are the high level steps to enable Zeppelin Security:
+Configure Zeppelin for Authentication
+Install Livy Server and Configure Livy with Zeppelin
+Optionally, enable access control on Zeppelin notebook.
+
+Configure Zeppelin for Authentication
+Note, when Zeppelin is authenticating end users, and Livy propagates the end-user identity to Hadoop, the end-user needs to exist on all nodes. In production you can leverage sssd or pam for this, but for now manually add user1 to all hosts in your cluster. 
+
+E.g to run as sample user “user1” run the below as OS root equivalent on all your worker nodes.
+
+useradd user1 -g hadoop
+
+As HDFS admin, create HDFS home for user1
+su hdfs
+hdfs dfs -mkdir /user/user1
+hdfs dfs -chown user1 /user/user1
+
+Note if you configure Zeppelin to run as another user, you need to add that user to the OS and create HDFS home directory for that user.
+Edit Zeppelin’s shiro config
+On the node where Zeppelin server is installed, edit /usr/hdp/current/zeppelin-server/lib/conf/shiro.ini and ensure the following in URL section
+[urls]
+/api/version = anon
+#/** = anon
+/** = authcBasic
+You can use users defined in shiro for authentication. E.g enable the section to authenticate as user1/password2.
+[users]
+admin = password1
+user1 = password2
+user2 = password3
+Alternatively, to use LDAP as identity store by configuring the section below for your ldap.
+[main]
+#ldapRealm = org.apache.shiro.realm.ldap.JndiLdapRealm
+#ldapRealm.userDnTemplate = cn={0},cn=engg,ou=testdomain,dc=testdomain,dc=com
+#ldapRealm.contextFactory.url = ldap://ldaphost:389
+#ldapRealm.contextFactory.authenticationMechanism = SIMPLE
+Restart Zeppelin server
+You can use Ambari to restart Zeppelin server. Ignore the error in Ambari during Zeppelin restart, Zeppelin starts fine.
+Access Zeppelin-Tutorial and login as user1/password2 (or any user defined in your LDAP)
+Note: Logout functionality is not available in this technical preview but is being added.
+On the Zeppelin node, install Livy
+sudo yum install livy
+Configure Livy Server
+Create /etc/livy/conf/livy-env.sh with the following values. Ensure the path to Java is accurate for that node.
+export SPARK_HOME=/usr/hdp/current/spark-client
+export JAVA_HOME=/usr/jdk64/jdk1.8.0_60
+export PATH=/usr/jdk64/jdk1.8.0_60/bin:$PATH
+export HADOOP_CONF_DIR=/etc/hadoop/conf
+export LIVY_SERVER_JAVA_OPTS="-Xmx2g"
+
+Create /etc/livy/conf/livy-defaults.conf with the following content.
+livy.impersonation.enabled = true
+
+
+On the node where Livy is installed, create ‘livy’ user to run the Livy process as user livy.
+
+useradd livy -g hadoop
+
+
+Create livy’s logs directory and grant user ‘livy’ permissions to write to it.
+
+mkdir /usr/hdp/current/livy-server/logs
+chmod 777 logs
+
+On Livy node, edit /etc/spark/conf/spark-defaults.conf to add the following
+
+spark.master yarn-client
+Step 6: Grant user livy the ability to proxy users in Hadoop’s core-site.xml
+Use Ambari to add to the /etc/hadoop/conf/core-site.xml the following and restart HDFS with Ambari.
+
+<property>
+   <name>hadoop.proxyuser.livy.groups</name>
+   <value>*</value>
+</property>
+<property>
+   <name>hadoop.proxyuser.livy.hosts</name>
+    <value>*</value>
+</property>
+Step 7: Start Livy server
+Launch Livy server as user ‘livy’
+cd /usr/hdp/current/livy-server
+su livy
+./bin/livy-server start
+Step 8: Configure Zeppelin to use Livy
+In Zeppelin, notebooks are run against the configured Interpreters. Go to your notebook and click on interpreter bindings.
+
+On the next page select the interpreters you want to use. Note the interpreter selection is done via clicking on a interpreter in a toggle manner. The unselected interpreter appears in white color. You can reorder the interpreter available to your notebook by drag and drop of interpreter.
+E.g below screenshot shows Livy Spark interpreter is selected ahead of Spark and launch with %lspark
+
+Step 9: Confirm Livy Interpreter setting
+Note the below Livy interpreter setting. If you have Livy installed on another node, replace localhost in the Livy url with the Livy host.
+
+If you make any changes to Livy interpreter setting, make sure to re-start Livy interpreter.
+Step 9: Run Notebooks with Livy Interpreter.
+Livy support, Spark, SparkSQL, PySpark & SparkR. To run notes with Livy, make sure to use the corresponding magic string at the top of your note.
+E.g %lspark for Scala code to run via Livy or %lspark.sql to run against SparkSQL via Livy.
+To use SQLContext with Livy, make sure to not create any SQLContext explicitly since we create it by default. I.e. remove the following lines from your SparkSQL note.
+//val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+     //import sqlContext.implicits._
+Configure Zeppelin to authorize end-users to Zeppelin notebooks.
+Now Zeppelin provide access control on each notebook. Click the lock icon on the notebook to configure access to that notebook.
+
+On the next popup add users who should have access to the policy. Refer to below screenshot
+
+
+
+Note with identity propagation enabled with Livy, the data access to controlled by the data source being accessed. E.g when you access HDFS as user1, the data access is controlled by HDFS permissions.
+
+
+Import External Libraries
+Often in the notebook you will want to use one or more libraries. For example, to run Magellan – you need to import its dependencies. To create a notebook to explore Magellan, you will need to include the Magellan library in your environment.
+There are three ways in Zeppelin to include an external dependency.
+Using the %dep interpreter. Note: this will only work for libraries that are published to Maven.
+%dep
+z.load("group:artifact:version")
+%spark
+import ...
+Here is an example to import dependency for Magellan
+%dep
+z.addRepo("Spark Packages Repo").url("http://dl.bintray.com/spark-packages/maven")
+z.load("com.esri.geometry:esri-geometry-api:1.2.1")
+z.load("harsha2010:magellan:1.0.3-s_2.10")
+
+
+For more information, see https://zeppelin.incubator.apache.org/docs/interpreter/spark.html#dependencyloading.
+When you have a jar on the node where Zeppelin is running, the following approach can be useful:Add spark.files property at SPARK_HOME/conf/spark-defaults.conf; for example:
+spark.files  /path/to/my.jar
+When you have a jar on the node where Zeppelin is running, this approach can also be useful:
+Add SPARK_SUBMIT_OPTIONS env variable to the  ZEPPELIN_HOME/conf/zeppelin-env.sh file; for example:
+export SPARK_SUBMIT_OPTIONS="--packages group:artifact:version"
+Stopping Zeppelin or Livy Server
+To stop the Zeppelin server, use Ambari. To stop Livy
+su livy; cd /usr/hdp/current/livy-server; ./bin/livy-server stop
+Questions and find Issues
+
+If you have any questions or would like to provide feedback, please visit the Spark forum:
+https://community.hortonworks.com/spaces/85/data-science.html
