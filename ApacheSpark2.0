@@ -1,0 +1,28 @@
+## Welcome to Apache Spark 2.0
+
+###### Author: Vinay Shukla
+
+Apache 2.0 was released yesterday in the community. This is a long awaited release that brings several key features. We are really excited about this release and sincerely thank the Apache and Apache Spark community for making this release possible. The most notable improvements in this release are in the area of API, Performance, Structured Streaming and SparkR. Let’s review some of these improvements:
+
+#### API
+
+The unification of DataFrame & DataSet is now complete. DataFrame remains the primary interface in R & Python. Another improvement is the unnecessity of dealing with multiple, contexts (SparkContext,SQLContext, HiveContext). They are deprecated and SparkSession, represented by variable ‘spark’ is the new entry point to all the awesome Spark features.
+
+#### Performance
+
+Project Tungsten has completed another major phase and with new whole stage code generation there is significant performance improvement delivered. Parquet & ORC  processing have also delivered performance improvements.
+
+##### Structured Streaming
+
+DataFrame is the preferred Spark abstraction since it delivers both ease of use through better abstraction and superior performance through Catalyst optimizer. The new  Structured Streaming API delivers Streaming with the same DataFrame API that we love.
+
+##### SparkR
+
+With Spark 2.0, SparkR now delivers new algorithms like naive-bayes, k-means clustering and survival regression. The ML persistence is also improved and save and load are supported on all models.
+
+There are many other significant improvements and a full list is [available](https://spark.apache.org/releases/spark-release-2-0-0.html) from Apache Spark.
+
+At Hortonworks we have always delivered the latest Apache Spark shortly after it is released in Apache. This time is no different, we are going to deliver Apache Spark 2.0 as a technical review with the upcoming HDP release shortly. 
+
+We congratulate the Spark community on this major milestone and we continue to deeply participate in the Spark community to deliver enterprise-ready Apache Spark. The best is yet to come, stay tuned.
+
